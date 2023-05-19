@@ -1,0 +1,6 @@
+harness
+perf.data
+perf.data.old
+promsnoop
+*.csv
+*.prof
