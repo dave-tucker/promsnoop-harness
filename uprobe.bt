@@ -1,0 +1,28 @@
+struct s {
+	const char	*str;
+	int	len;
+}
+
+struct desc {
+	struct s fqName;
+}
+
+struct counter {
+	uint64_t valBits;
+	uint64_t valInt;
+	uint64_t selfCollector[2];
+	struct desc *desc;
+};
+
+// 0x0981f20 "github.com/prometheus/client_golang/prometheus.(*counter).Inc"
+uprobe:./harness:0x0981f20 {
+	$c = ((struct counter *)reg("ax"));
+	$d = @names[$c];
+	if ($d == 0) {
+		printf("getting name\n");
+		$desc = (struct desc *)$c->desc;
+		$d = $desc->fqName.str;
+		@names[$c] = $d;
+	}
+	printf("%d, counter %s: %d\n", $c, str($d), $c->valInt);
+}

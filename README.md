@@ -7,17 +7,22 @@ A simple test harness to measure the overhead of uprobe-based monitoring of prom
 - Golang
 - [promsnoop](https://github.com/acmel/libbpf-bootstrap/tree/prometheusnoop)
 - [k6](https://k6.io/docs/get-started/installation/)
+- bpftrace
 
 ## Usage
 
-The binary is a simple HTTP server with a single route `/products/{id}` and returns a JSON response like `{ "productID": "1234" }`.
-The server uses the [Gin](https://github.com/gin-gonic/gin) web framework and is instrumented using [gin-metrics](https://github.com/penglongli/gin-metrics).
-The library sets 7 metrics after each HTTP request is handled - 6 counters and 1 histogram.
+The binary is a simple HTTP server with a several routes:
+
+- `/baseline` - has no metrics in the request path
+- `/prom/1`, `/prom/10`, `/prom/100` - has 1, 10, or 100 metrics in the request path
+- `/usdt/1`, `/usdt/10`, `/usdt/100` - has 1, 10, or 100 metrics in the request path
+
+The server uses the [Gin](https://github.com/gin-gonic/gin) web framework.
 
 To load the webserver and provide metrics for comparison we're using `k6`.
-K6 will run a script that hits our HTTP endpoint with a configurable number of concurrent users.
+K6 will run a script that hits one of the available HTTP endpoints, issuing one request per second for the duration of the test.
 
-Under these conditions, it should be possible to measure the overhead of promsnoop by comparing the performance of the web server with and without promsnoop enabled.
+Under these conditions, it should be possible to measure the overhead of uprobes and usdt probes.
 
 Build the test binary:
 
@@ -34,11 +39,20 @@ Launch the webserver:
 Run the k6 script:
 
 ```bash
-k6 run --vus 1000 --duration 5s script.js
+k6 run ./tests/baseline.js
 ```
 
-To attach promsnoop to the webserver, run the following command:
+To attach uprobes with bpftrace:
 
 ```bash
-sudo promsnoop -b harness
+sudo bpftrace -v ./uprobe.bt -p $(sudo pgrep harness)
+```
+
+Note: bpftrace didn't like the symbol name for the uprobe.
+You may have to `readelf --symbols harness -W | grep '(*counter).Inc'` to find the correct offset to attach the probe to and update `uprobe.bt` accordingly.
+
+To attach USDT probes with bpftrace:
+
+```bash
+sudo bpftrace -v ./usdt.bt -p $(sudo pgrep harness)
 ```
